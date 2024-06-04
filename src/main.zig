@@ -1,5 +1,6 @@
 const std = @import("std");
 const net = std.net;
+const HttpResponse = @import("response.zig").HttpResponse;
 
 pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
@@ -15,5 +16,10 @@ pub fn main() !void {
 
     const connection = try listener.accept();
     try stdout.print("accepted new connection", .{});
+
+    var response = HttpResponse.init(std.heap.page_allocator, .Ok, null);
+    defer response.deinit();
+    try response.send(connection.stream.writer());
+
     connection.stream.close();
 }
