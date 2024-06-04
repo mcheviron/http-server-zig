@@ -1,48 +1,24 @@
 const std = @import("std");
 
-pub const HttpVersion = enum {
-    http1_1,
-};
-
 pub const ContentType = union(enum) {
     PlainText: []const u8,
     OctetStream: []const u8,
 };
 
-pub const HttpStatus = union(enum) {
-    Ok,
+pub const HttpResponse = union(enum) {
+    Ok: ?ContentType,
     Created,
     NotFound,
-};
 
-pub const HttpResponse = struct {
-    status: HttpStatus,
-    body: ?ContentType,
-    allocator: std.mem.Allocator,
-    buffer: std.ArrayList(u8),
+    pub fn bytes(self: HttpResponse, buffer: []u8) ![]const u8 {
+        var fbs = std.io.fixedBufferStream(buffer);
+        const writer = fbs.writer();
 
-    pub fn init(allocator: std.mem.Allocator, status: HttpStatus, body: ?ContentType) HttpResponse {
-        return .{
-            .status = status,
-            .body = body,
-            .allocator = allocator,
-            .buffer = std.ArrayList(u8).init(allocator),
-        };
-    }
-
-    pub fn deinit(self: *HttpResponse) void {
-        self.buffer.deinit();
-    }
-
-    fn bytes(self: *HttpResponse) ![]const u8 {
-        self.buffer.clearRetainingCapacity();
-        const writer = self.buffer.writer();
-
-        switch (self.status) {
-            .Ok => {
+        switch (self) {
+            .Ok => |content_type| {
                 try writer.print("HTTP/1.1 200 OK\r\n", .{});
-                if (self.body) |content_type| {
-                    try writer.print("Content-Type: {s}\r\n", .{switch (content_type) {
+                if (content_type) |ct| {
+                    try writer.print("Content-Type: {s}\r\n", .{switch (ct) {
                         .PlainText => "text/plain",
                         .OctetStream => "application/octet-stream",
                     }});
@@ -54,11 +30,6 @@ pub const HttpResponse = struct {
 
         try writer.writeAll("\r\n");
 
-        return self.buffer.items;
-    }
-
-    pub fn send(self: *HttpResponse, writer: anytype) !void {
-        const response_bytes = try self.bytes();
-        try writer.writeAll(response_bytes);
+        return fbs.getWritten();
     }
 };
