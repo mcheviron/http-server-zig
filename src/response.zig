@@ -9,9 +9,14 @@ pub const HttpResponse = union(enum) {
         PlainText: []const u8,
         OctetStream: []const u8,
     };
+
+    pub const Encoding = enum {
+        Gzip,
+    };
+
     pub const OkResponse = struct {
         content: ?Content,
-        encoding: ?[]const u8,
+        encoding: ?Encoding,
     };
 
     pub fn bytes(self: HttpResponse, allocator: std.mem.Allocator) ![]const u8 {
@@ -23,21 +28,50 @@ pub const HttpResponse = union(enum) {
             .Ok => |ok_response| {
                 if (ok_response) |resp| {
                     try writer.print("HTTP/1.1 200 OK\r\n", .{});
-                    if (resp.encoding) |encoding| {
-                        try writer.print("Content-Encoding: {s}\r\n", .{encoding});
-                    }
                     if (resp.content) |content_type| switch (content_type) {
                         .PlainText => |text| {
-                            try writer.print("Content-Type: text/plain\r\n", .{});
-                            try writer.print("Content-Length: {}\r\n", .{text.len});
-                            try writer.writeAll("\r\n");
-                            try writer.writeAll(text);
+                            var compressed_data = std.ArrayList(u8).init(allocator);
+                            defer compressed_data.deinit();
+                            if (resp.encoding) |encoding| {
+                                switch (encoding) {
+                                    .Gzip => {
+                                        try writer.print("Content-Encoding: gzip\r\n", .{});
+                                        var reader = std.io.fixedBufferStream(text);
+                                        try std.compress.gzip.compress(reader.reader(), compressed_data.writer(), .{});
+                                        try writer.print("Content-Type: text/plain\r\n", .{});
+                                        try writer.print("Content-Length: {}\r\n", .{compressed_data.items.len});
+                                        try writer.writeAll("\r\n");
+                                        try writer.writeAll(compressed_data.items);
+                                    },
+                                }
+                            } else {
+                                try writer.print("Content-Type: text/plain\r\n", .{});
+                                try writer.print("Content-Length: {}\r\n", .{text.len});
+                                try writer.writeAll("\r\n");
+                                try writer.writeAll(text);
+                            }
                         },
                         .OctetStream => |data| {
-                            try writer.print("Content-Type: application/octet-stream\r\n", .{});
-                            try writer.print("Content-Length: {}\r\n", .{data.len});
-                            try writer.writeAll("\r\n");
-                            try writer.writeAll(data);
+                            var compressed_data = std.ArrayList(u8).init(allocator);
+                            defer compressed_data.deinit();
+                            if (resp.encoding) |encoding| {
+                                switch (encoding) {
+                                    .Gzip => {
+                                        try writer.print("Content-Encoding: gzip\r\n", .{});
+                                        var reader = std.io.fixedBufferStream(data);
+                                        try std.compress.gzip.compress(reader.reader(), compressed_data.writer(), .{});
+                                        try writer.print("Content-Type: application/octet-stream\r\n", .{});
+                                        try writer.print("Content-Length: {}\r\n", .{compressed_data.items.len});
+                                        try writer.writeAll("\r\n");
+                                        try writer.writeAll(compressed_data.items);
+                                    },
+                                }
+                            } else {
+                                try writer.print("Content-Type: application/octet-stream\r\n", .{});
+                                try writer.print("Content-Length: {}\r\n", .{data.len});
+                                try writer.writeAll("\r\n");
+                                try writer.writeAll(data);
+                            }
                         },
                     };
                 }

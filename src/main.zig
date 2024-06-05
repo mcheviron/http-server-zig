@@ -5,6 +5,7 @@ const HttpResponse = @import("response.zig").HttpResponse;
 const HttpRequest = @import("request.zig").HttpRequest;
 const Router = @import("router.zig").Router;
 const Content = @import("response.zig").HttpResponse.Content;
+const Encoding = @import("response.zig").HttpResponse.Encoding;
 
 fn handleHome(_: HttpRequest) HttpResponse {
     return HttpResponse{ .Ok = .{ .content = null, .encoding = null } };
@@ -13,10 +14,10 @@ fn handleHome(_: HttpRequest) HttpResponse {
 fn handleEcho(request: HttpRequest) HttpResponse {
     if (request.params) |params| {
         if (params.get("str")) |str_value| {
-            const encoding = blk: {
+            const encoding: ?Encoding = blk: {
                 if (request.headers.get("Accept-Encoding")) |header_encoding| {
                     if (std.mem.containsAtLeast(u8, header_encoding, 1, "gzip")) {
-                        break :blk "gzip";
+                        break :blk Encoding.Gzip;
                     }
                 }
                 break :blk null;
@@ -24,7 +25,7 @@ fn handleEcho(request: HttpRequest) HttpResponse {
             return HttpResponse{
                 .Ok = .{
                     .content = Content{ .PlainText = str_value },
-                    .encoding = if (encoding) |enc| enc[0..] else null,
+                    .encoding = encoding,
                 },
             };
         }

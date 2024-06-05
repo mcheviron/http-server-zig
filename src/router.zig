@@ -3,6 +3,7 @@ const HttpMethod = @import("request.zig").HttpMethod;
 const HttpRequest = @import("request.zig").HttpRequest;
 const HttpResponse = @import("response.zig").HttpResponse;
 const Content = @import("response.zig").HttpResponse.Content;
+const Encoding = @import("response.zig").HttpResponse.Encoding;
 
 pub const HandlerFn = *const fn (HttpRequest) HttpResponse;
 
