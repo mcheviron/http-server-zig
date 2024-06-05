@@ -2,7 +2,7 @@ const std = @import("std");
 const HttpMethod = @import("request.zig").HttpMethod;
 const HttpRequest = @import("request.zig").HttpRequest;
 const HttpResponse = @import("response.zig").HttpResponse;
-const ContentType = @import("response.zig").ContentType;
+const Content = @import("response.zig").HttpResponse.Content;
 
 pub const HandlerFn = *const fn (HttpRequest) HttpResponse;
 
@@ -155,7 +155,12 @@ pub const Router = struct {
                         if (std.fs.openFileAbsolute(file_path, .{})) |file| {
                             defer file.close();
                             const contents = try file.readToEndAlloc(self.allocator, std.math.maxInt(usize));
-                            return HttpResponse{ .Ok = ContentType{ .OctetStream = contents } };
+                            return HttpResponse{
+                                .Ok = HttpResponse.OkResponse{
+                                    .content = HttpResponse.Content{ .OctetStream = contents },
+                                    .encoding = null,
+                                },
+                            };
                         } else |_| {}
                     },
                     HttpMethod.Post => {
