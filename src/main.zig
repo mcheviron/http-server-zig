@@ -19,6 +19,14 @@ fn handleEcho(request: HttpRequest) HttpResponse {
     return HttpResponse.NotFound;
 }
 
+fn handleUserAgent(request: HttpRequest) HttpResponse {
+    if (request.headers.get("User-Agent")) |user_agent| {
+        return HttpResponse{ .Ok = ContentType{ .PlainText = user_agent } };
+    }
+    return HttpResponse.NotFound;
+}
+
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer if (gpa.deinit() != .ok) @panic("Leaked memory");
@@ -35,5 +43,6 @@ pub fn main() !void {
     var router = Router.init(allocator, listener, null);
     try router.get("/", handleHome);
     try router.get("/echo/{str}", handleEcho);
+    try router.get("/user-agent", handleUserAgent);
     try router.run();
 }
