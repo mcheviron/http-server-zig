@@ -10,26 +10,39 @@ pub const HttpResponse = union(enum) {
     Created,
     NotFound,
 
-    pub fn bytes(self: HttpResponse, buffer: []u8) ![]const u8 {
-        var fbs = std.io.fixedBufferStream(buffer);
-        const writer = fbs.writer();
+    pub fn bytes(self: HttpResponse, allocator: std.mem.Allocator) ![]const u8 {
+        var list = std.ArrayList(u8).init(allocator);
+        defer list.deinit();
+        const writer = list.writer();
 
         switch (self) {
-            .Ok => |content_type| {
+            .Ok => |content| {
                 try writer.print("HTTP/1.1 200 OK\r\n", .{});
-                if (content_type) |ct| {
-                    try writer.print("Content-Type: {s}\r\n", .{switch (ct) {
-                        .PlainText => "text/plain",
-                        .OctetStream => "application/octet-stream",
-                    }});
-                }
+                if (content) |content_type| switch (content_type) {
+                    .PlainText => |text| {
+                        try writer.print("Content-Type: text/plain\r\n", .{});
+                        try writer.print("Content-Length: {}\r\n", .{text.len});
+                        try writer.writeAll("\r\n");
+                        try writer.writeAll(text);
+                    },
+                    .OctetStream => |data| {
+                        try writer.print("Content-Type: application/octet-stream\r\n", .{});
+                        try writer.print("Content-Length: {}\r\n", .{data.len});
+                        try writer.writeAll("\r\n");
+                        try writer.writeAll(data);
+                    },
+                };
             },
-            .Created => try writer.print("HTTP/1.1 201 Created\r\n", .{}),
-            .NotFound => try writer.print("HTTP/1.1 404 Not Found\r\n", .{}),
+            .Created => {
+                try writer.print("HTTP/1.1 201 Created\r\n", .{});
+                try writer.writeAll("\r\n");
+            },
+            .NotFound => {
+                try writer.print("HTTP/1.1 404 Not Found\r\n", .{});
+                try writer.writeAll("\r\n");
+            },
         }
 
-        try writer.writeAll("\r\n");
-
-        return fbs.getWritten();
+        return list.toOwnedSlice();
     }
 };

@@ -3,6 +3,21 @@ const log = std.log;
 const net = std.net;
 const HttpResponse = @import("response.zig").HttpResponse;
 const HttpRequest = @import("request.zig").HttpRequest;
+const Router = @import("router.zig").Router;
+const ContentType = @import("response.zig").ContentType;
+
+fn handleHome(_: HttpRequest) HttpResponse {
+    return HttpResponse{ .Ok = ContentType{ .PlainText = "" } };
+}
+
+fn handleEcho(request: HttpRequest) HttpResponse {
+    if (request.params) |params| {
+        if (params.get("str")) |str_value| {
+            return HttpResponse{ .Ok = ContentType{ .PlainText = str_value } };
+        }
+    }
+    return HttpResponse.NotFound;
+}
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -17,21 +32,8 @@ pub fn main() !void {
     });
     defer listener.deinit();
 
-    const connection = try listener.accept();
-    log.info("accepted new connection", .{});
-
-    const writer = connection.stream.writer();
-    const reader = connection.stream.reader();
-    var buffer: [1024]u8 = undefined;
-
-    const bytes_read = try reader.read(&buffer);
-    var request = try HttpRequest.init(allocator, buffer[0..bytes_read]);
-    defer request.deinit();
-
-    const response = if (std.mem.eql(u8, request.resource, "/")) HttpResponse{ .Ok = null } else HttpResponse.NotFound;
-    @memset(&buffer, 0);
-    const response_bytes = try response.bytes(&buffer);
-    try writer.writeAll(response_bytes);
-
-    connection.stream.close();
+    var router = Router.init(allocator, listener, null);
+    try router.get("/", handleHome);
+    try router.get("/echo/{str}", handleEcho);
+    try router.run();
 }

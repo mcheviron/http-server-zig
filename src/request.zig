@@ -31,14 +31,11 @@ pub const HttpRequest = struct {
     params: ?std.StringHashMap([]const u8),
 
     pub fn init(allocator: std.mem.Allocator, request: []const u8) !HttpRequest {
-        std.log.debug("Initializing HttpRequest...", .{});
         var lines = std.mem.splitSequence(u8, request, "\r\n");
         const first_line = lines.next() orelse return HttpRequestError.InvalidHttpRequest;
-        std.log.debug("First line: {s}", .{first_line});
         var first_line_parts = std.mem.splitSequence(u8, first_line, " ");
         const method = blk: {
             const method_str = first_line_parts.next() orelse return HttpRequestError.InvalidHttpMethod;
-            std.log.debug("Method: {s}", .{method_str});
             if (std.mem.eql(u8, method_str, "GET")) {
                 break :blk HttpMethod.Get;
             } else if (std.mem.eql(u8, method_str, "POST")) {
@@ -52,10 +49,8 @@ pub const HttpRequest = struct {
             }
         };
         const resource = first_line_parts.next() orelse return HttpRequestError.InvalidHttpResource;
-        std.log.debug("Resource: {s}", .{resource});
         const protocol = blk: {
             const protocol_str = first_line_parts.next() orelse return HttpRequestError.InvalidHttpProtocol;
-            std.log.debug("Protocol: {s}", .{protocol_str});
             if (std.mem.eql(u8, protocol_str, "HTTP/1.1")) {
                 break :blk HttpProtocol.Http11;
             } else {
@@ -67,18 +62,14 @@ pub const HttpRequest = struct {
         errdefer headers.deinit();
         while (lines.next()) |line| {
             if (line.len == 0) break;
-            std.log.debug("Header line: {s}", .{line});
             var header_parts = std.mem.splitSequence(u8, line, ":");
             const header_name = std.mem.trim(u8, header_parts.next() orelse return HttpRequestError.InvalidHttpHeader, " ");
-            const header_value = std.mem.trim(u8, header_parts.next() orelse return HttpRequestError.InvalidHttpHeaderValue, " ");
-            std.log.debug("Header: {s} = {s}", .{ header_name, header_value });
+            const header_value = std.mem.trim(u8, header_parts.rest(), " ");
             try headers.put(header_name, header_value);
         }
 
         const body = lines.rest();
-        std.log.debug("Body: {s}", .{body});
 
-        std.log.debug("HttpRequest initialized successfully", .{});
         return HttpRequest{
             .method = method,
             .resource = resource,
