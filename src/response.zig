@@ -11,9 +11,9 @@ pub const HttpResponse = union(enum) {
     NotFound,
 
     pub fn bytes(self: HttpResponse, allocator: std.mem.Allocator) ![]const u8 {
-        var list = std.ArrayList(u8).init(allocator);
-        defer list.deinit();
-        const writer = list.writer();
+        var responseBuffer = std.ArrayList(u8).init(allocator);
+        defer responseBuffer.deinit();
+        const writer = responseBuffer.writer();
 
         switch (self) {
             .Ok => |content| {
@@ -43,6 +43,18 @@ pub const HttpResponse = union(enum) {
             },
         }
 
-        return list.toOwnedSlice();
+        return responseBuffer.toOwnedSlice();
+    }
+
+    pub fn deinit(self: HttpResponse, allocator: std.mem.Allocator) void {
+        switch (self) {
+            .Ok => |content| {
+                if (content) |content_type| switch (content_type) {
+                    .OctetStream => |data| allocator.free(data),
+                    .PlainText => {},
+                };
+            },
+            else => {},
+        }
     }
 };

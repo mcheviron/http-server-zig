@@ -155,7 +155,6 @@ pub const Router = struct {
                         if (std.fs.openFileAbsolute(file_path, .{})) |file| {
                             defer file.close();
                             const contents = try file.readToEndAlloc(self.allocator, std.math.maxInt(usize));
-                            defer self.allocator.free(contents);
                             return HttpResponse{ .Ok = ContentType{ .OctetStream = contents } };
                         } else |_| {}
                     },
@@ -194,6 +193,7 @@ pub const Router = struct {
         defer request.deinit();
 
         const response = try router.handleRequest(request);
+        defer response.deinit(router.allocator);
 
         const response_bytes = try response.bytes(router.allocator);
         defer router.allocator.free(response_bytes);

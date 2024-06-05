@@ -26,7 +26,6 @@ fn handleUserAgent(request: HttpRequest) HttpResponse {
     return HttpResponse.NotFound;
 }
 
-
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer if (gpa.deinit() != .ok) @panic("Leaked memory");
@@ -35,12 +34,26 @@ pub fn main() !void {
     const address = try net.Address.resolveIp("127.0.0.1", 4221);
     log.info("listening on http://127.0.0.1:4221", .{});
 
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+
+    const directory = blk: {
+        for (args[1..], 1..) |arg, i| {
+            if (std.mem.eql(u8, arg, "--directory")) {
+                if (i + 1 < args.len) {
+                    break:blk args[i + 1];
+                }
+            }
+        }
+        break :blk null;
+    };
+
     var listener = try address.listen(.{
         .reuse_address = true,
     });
     defer listener.deinit();
 
-    var router = Router.init(allocator, listener, null);
+    var router = Router.init(allocator, listener, directory);
     try router.get("/", handleHome);
     try router.get("/echo/{str}", handleEcho);
     try router.get("/user-agent", handleUserAgent);
